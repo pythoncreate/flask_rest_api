@@ -1,9 +1,10 @@
 from flask import jsonify, Blueprint, abort
 
 from flask_restful import (Resource, Api, reqparse,
-                           inputs, fields, marshal,
-                           marshal_with, url_for)
+                               inputs, fields, marshal,
+                               marshal_with, url_for)
 
+from auth import auth
 import models
 
 course_fields = {
@@ -53,11 +54,13 @@ class CourseList(Resource):
         return {'courses': courses}
 
     @marshal_with(course_fields)
+    @auth.login_required
     def post(self):
         args = self.reqparse.parse_args()
         course = models.Course.create(**args)
-        return (add_reviews(course), 201,
-                {'Location':url_for('resources.courses.course', id=course.id)})
+        return (add_reviews(course), 201, {
+            'Location': url_for('resources.courses.course', id=course.id)}
+                )
 
 
 class Course(Resource):
@@ -83,19 +86,20 @@ class Course(Resource):
         return add_reviews(course_or_404(id))
 
     @marshal_with(course_fields)
+    @auth.login_required
     def put(self, id):
         args = self.reqparse.parse_args()
         query = models.Course.update(**args).where(models.Course.id == id)
         query.execute()
-        return (add_reviews(course_or_404(id)),
-                200,
+        return (add_reviews(models.Course.get(models.Course.id == id)), 200,
                 {'Location': url_for('resources.courses.course', id=id)})
 
+    @auth.login_required
     def delete(self, id):
-        # query = models.Course.delete().where(models.Course.id == id)
-        course_or_404(id).delete_instance()
-        # query.execute()
+        query = models.Course.delete().where(models.Course.id == id)
+        query.execute()
         return '', 204, {'Location': url_for('resources.courses.courses')}
+
 
 courses_api = Blueprint('resources.courses', __name__)
 api = Api(courses_api)
